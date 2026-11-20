@@ -170,3 +170,106 @@ curl -N -X POST http://localhost:8080/invocations -H "Content-Type: application/
 You must see something like this as output `data: {"delta": ...}`
 
 # Step 2 - Deploying the Agent to agentCore
+
+### 2.1 Build the code zip
+
+```bash
+agentcore build
+```
+This creates a zip file with `main.py` at the root level
+
+### 2.2 Upload the zip from step 2.1 to `S3`
+
+- [] Create a new bucket and name it something appropriate.
+- [] Keep the default settings and hit upload!
+- [] Copy the S3 URI
+
+### 2.3 Create a AgentCore Runtime
+
+#### 2.3.1 Go to AgentCore then in `Agents` in leftSidebar and then to `host agents`
+<img width="1919" height="942" alt="image" src="https://github.com/user-attachments/assets/5e49e612-6b2e-4ddf-8d76-330b14849435" />
+
+#### 2.3.2 Create a runtime
+
+## AWS AgentCore Runtime Configuration
+
+| Setting | Value / Selection | Explanation |
+|---|---|---|
+| **Name** | `gigachadAgent_runtime` | Use letters, numbers, and underscores only. |
+| **Runtime platform** | **V1** | Select V1. |
+| **Code source** | **S3** | Paste the S3 URI of the ZIP file uploaded in Step 2.2. |
+| **Runtime** | **Python 3.14** | Must match `runtimeVersion` in `agentcore.json`. |
+| **Entry point** | `opentelemetry-instrument main.py` | Starts the agent and enables tracing in CloudWatch Observability. Plain `main.py` also works but may not produce traces. |
+| **IAM role** | **Create new role** | Or select an existing AgentCore execution role with the required permissions. |
+| **Network** | **Public** | Allows the agent to access external services such as OpenAI. |
+| **Environment variables** | `OPENAI_API_KEY` = your OpenAI API key | Used by `main.py` to authenticate with OpenAI. |
+| **Filesystem configuration** | **Leave empty** | Not required. |
+| **Inbound Auth** | **JSON Web Tokens (JWT)** | Enables JWT authentication for incoming requests. |
+| **Identity provider configuration** | **Use existing Identity provider configurations** | Reuses your existing Cognito User Pool. Do not select **Quick create**, as it creates a new pool. |
+| **Discovery URL** | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration` | Replace `<region>` and `<user-pool-id>` with your Cognito details. |
+| **Allowed clients** | **Your Cognito App Client ID** | Specifies which Cognito app client is allowed to access the runtime. |
+| **Allowed audiences** | **Leave empty** | Cognito access tokens use `client_id` instead of `aud`. The **Allowed clients** setting checks this value. |
+
+Then hit the `Create Runtime` button!!
+
+#### 2.3.3 Copy the runtime ARN
+<img width="1919" height="956" alt="image" src="https://github.com/user-attachments/assets/701430e1-7fc4-493b-b8fe-87a5829be78e" />
+
+# Step 3 - Test the Agent
+
+### 3.1 Copy your cognito Access token 
+
+### 3.2 Create a python test script to test the deployed agent!
+
+1. Create a test.py file (Replace the line 2 value with your actual ARN)
+
+```bash
+import base64, getpass, json, urllib.error, urllib.parse, urllib.request, uuid
+
+REGION = "us-west-2"
+RUNTIME_ARN = "<your runtime ARN>"
+
+token = getpass.getpass("Paste your Cognito ACCESS token (it stays hidden), then press Enter: ").strip()
+prompt = input("Type your message, then press Enter: ").strip()
+
+# Quick check: AgentCore needs the access token (has client_id), not the ID token.
+claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
+print("token_use:", claims.get("token_use"), "| client_id:", claims.get("client_id"))
+
+url = (f"https://bedrock-agentcore.{REGION}.amazonaws.com/runtimes/"
+       f"{urllib.parse.quote(RUNTIME_ARN, safe='')}/invocations?qualifier=DEFAULT")
+req = urllib.request.Request(url, method="POST",
+    data=json.dumps({"prompt": prompt}).encode(),
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+        "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": str(uuid.uuid4()),
+    })
+try:
+    with urllib.request.urlopen(req) as resp:
+        for line in resp:
+            print(line.decode().rstrip())
+except urllib.error.HTTPError as e:
+    print("HTTP", e.code, e.read().decode())
+
+```
+
+2. Run the test.py file
+
+```bash
+python test.py
+```
+Common error you may face and how to resolve them
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Claim 'client_id' value mismatch` | You used the ID token (`token_use: id`) | Use the access token |
+| `Ineffectual token, will expire within the next minute` | The token is about to expire | Log in again and get a fresh token |
+| `HTTP 401` with any other message | Wrong Discovery URL or app client ID | Check the settings from 2.4 |
+
+# Step 3 - Precautionary Step
+
+You can now connect this agent to a website and talk to it once the user is logged in using the same cognito user pool but the ARN will be exposed to the end user which will cause unnecessory information disclosure.
+
+### Step 3.1 - 
