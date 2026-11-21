@@ -486,9 +486,15 @@ Once deployed, test your CloudFront endpoint using **Postman** or `curl` with yo
 
 ---
 
-<div align="center">
+<details>
+<summary><h3>Step 5 — The Most Important Step!</h3></summary>
 
-### Step 5 — The Most Important Step!
+<blockquote>
+
 If this guide helped you deploy your agent, **give this repo a well-deserved star** :star:
 
-</div>
+</blockquote>
+
+</details>
+
+# <div align="center">Don't forget to leave a star ⭐️</div>
