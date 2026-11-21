@@ -268,8 +268,32 @@ Common error you may face and how to resolve them
 | `Ineffectual token, will expire within the next minute` | The token is about to expire | Log in again and get a fresh token |
 | `HTTP 401` with any other message | Wrong Discovery URL or app client ID | Check the settings from 2.4 |
 
-# Step 3 - Precautionary Step
+# Step 3 - Precautionary Step (Hide your ARN!)
 
 You can now connect this agent to a website and talk to it once the user is logged in using the same cognito user pool but the ARN will be exposed to the end user which will cause unnecessory information disclosure.
 
-### Step 3.1 - 
+### Step 3.1 - Create a new cloudfront function
+<img width="1902" height="945" alt="image" src="https://github.com/user-attachments/assets/ae0149ff-1610-4a10-b161-65a50211cd2e" />
+
+### Step 3.2 - Add code to hide the ARN
+paste this code in the build tab once you create the function (Update the code as per your need)
+
+```bash
+function handler(event) {
+    var request = event.request;
+
+    // Replace with your own Runtime ARN (AgentCore console → your agent → Runtime ARN).
+    // It lives only here, at the CloudFront edge. The browser never sees it.
+    var RUNTIME_ARN = "arn:aws:bedrock-agentcore:<region>:<account-id>:runtime/<runtime-id>";
+
+    // Send every request on this path to the AgentCore invoke endpoint.
+    request.uri = "/runtimes/" + encodeURIComponent(RUNTIME_ARN) + "/invocations";
+    request.querystring = { qualifier: { value: "DEFAULT" } };
+    return request;
+}
+```
+
+And then test the agent through postman!
+
+# Step 4 - The most important step! 
+# Give this repo a well deserving starrr ⭐
