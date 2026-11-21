@@ -1,75 +1,140 @@
-# A simple step-by-step guide for deploying an Agent to `AWS AgentCore` with `Cognito` Authentication
+<div align="center">
 
-# Note from Owner
-- [x] <b>I have kept the agent very simple because the main focus of this documentation is on deployment and auth.</b>
+# Deploying an AI Agent to AWS AgentCore with Cognito Auth
 
-# Step 0 - prerequisites
+A simple, step-by-step guide to building, securing, and deploying an OpenAI-powered agent on **Amazon Bedrock AgentCore** using **Amazon Cognito** JWT authentication.
 
-### Accounts & Keys
-- **AWS Account** with Amazon Bedrock AgentCore access (guide uses `us-west-2`)
-- **Amazon Cognito User Pool** with an **App Client** and an active user (save the **User Pool ID** and **App Client ID**)
+![AWS AgentCore](https://img.shields.io/badge/AWS-Bedrock%20AgentCore-FF9900?style=flat-square&logo=amazonwebservices&logoColor=white)
+![Amazon Cognito](https://img.shields.io/badge/Auth-Amazon%20Cognito-DD344C?style=flat-square&logo=amazonwebservices&logoColor=white)
+![Python 3.12+](https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white)
+![OpenAI](https://img.shields.io/badge/LLM-OpenAI-412991?style=flat-square&logo=openai&logoColor=white)
+
+</div>
+
+> [!NOTE]
+> **Note from the Owner:** I have kept the agent intentionally simple because the main focus of this documentation is on **deployment and authentication**.
+
+---
+
+<details open>
+<summary><h3>Step 0 — Prerequisites</h3></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>Accounts &amp; Keys</strong></summary>
+
+- **AWS Account** with Amazon Bedrock AgentCore access *(this guide uses `us-west-2`)*
+- **Amazon Cognito User Pool** with an **App Client** and an active user *(save your **User Pool ID** and **App Client ID**)*
 - **OpenAI API Key** from [platform.openai.com](https://platform.openai.com)
 
-### Local Tools
-- **Python 3.12+** & **uv** — local testing and dependency builds
-- **Node.js 20+ & npm** — AgentCore CLI (`npm install -g @aws/agentcore`)
+</details>
+
+<details>
+<summary><strong>Local Tools</strong></summary>
+
+- **Python 3.12+** &amp; **`uv`** — local testing and dependency management
+- **Node.js 20+** &amp; **`npm`** — AgentCore CLI (`npm install -g @aws/agentcore`)
 - **AWS CLI v2** — authenticated via `aws login` or environment credentials
 - **Postman or `curl`** *(optional)* — endpoint testing
 
-### AWS Permissions
-Ensure your IAM user/role can:
+</details>
+
+<details>
+<summary><strong>AWS IAM Permissions</strong></summary>
+
+Ensure your IAM user or role can:
 - Manage **AgentCore runtimes** and upload code bundles to **S3**
 - Create or pass an **IAM execution role** (`iam:CreateRole`, `iam:PassRole`)
 - *(Optional)* Assume **CDK bootstrap roles** (`cdk-hnb659fds-*`) for CLI deployments
 - *(Optional)* Manage **CloudFront** functions and distributions
 
-# Step 1 - Local Agent setup
-### 1.1 Create the AgentCore project
-Install the AgentCore CLI and create an empty project:
-```bash
-  npm install -g @aws/agentcore
-  agentcore create --name GigaChadAgent --template empty
-  cd GigaChadAgent
-```
-and then add a runtime (your agent) with Cognito login turned on:
-```bash
-agentcore add runtime --name chatagent --language python --authorizer-type CUSTOM_JWT --authorizer-configuration "{\"customJwtAuthorizer\":{\"discoveryUrl\":\"https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration\",\"allowedClients\":[\"<app-client-id>\"]}}"
-```
-<div align="center">👆 Fill in the placeholder text with actual values.</div>
+</details>
 
-<div align="center">👇 After the commands the project will be scaffolded with the following folder structure</div>
+</blockquote>
+
+</details>
+
+---
+
+<details>
+<summary><h3>Step 1 — Local Agent Setup</h3></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>1.1 Create the AgentCore project</strong></summary>
+
+Install the AgentCore CLI and scaffold an empty project:
+
+```bash
+npm install -g @aws/agentcore
+agentcore create --name GigaChadAgent --template empty
+cd GigaChadAgent
+```
+
+Add a runtime (your agent) with Cognito JWT authentication enabled:
+
+```bash
+agentcore add runtime \
+  --name chatagent \
+  --language python \
+  --authorizer-type CUSTOM_JWT \
+  --authorizer-configuration "{\"customJwtAuthorizer\":{\"discoveryUrl\":\"https://cognito-idp.<region>[.amazonaws.com/](https://.amazonaws.com/)<user-pool-id>/.well-known/openid-configuration\",\"allowedClients\":[\"<app-client-id>\"]}}"
+```
+
+> [!IMPORTANT]
+> Replace `<region>`, `<user-pool-id>`, and `<app-client-id>` with your actual Cognito values before running the command.
+
+After running these commands, your project will have the following structure (including an `AGENTS.md` file with instructions for AI coding assistants):
 
 ```text
 openai-agentcore/
-├── GigaChadAgent/                     # Made by `agentcore create`
-│   ├── .gitignore                  # Keeps .env.local, build files and node_modules out of git
+├── GigaChadAgent/                  # Created by `agentcore create`
+│   ├── .gitignore                  # Keeps .env.local, build files, and node_modules out of git
 │   ├── agentcore/
 │   │   ├── agentcore.json          # Runtime config (auth, env vars)
 │   │   ├── aws-targets.json        # AWS account + region to deploy to (starts empty)
 │   │   ├── .env.local              # Local-only env vars for `agentcore dev` (git-ignored)
-│   │   └── cdk/                    # Deploy code the CLI uses (don't edit)
+│   │   └── cdk/                    # Deploy code used by the CLI (do not edit)
 │   └── app/
-│       └── GigaChadAgent/              # Made by `agentcore add runtime`
-│           ├── README.md           # Help file (made by the CLI)
-│           ├── AGENTS.md           # Help for AI coding assistants (made by the CLI)
-└── test_agent.py                   # Deployed agent test script
-
+│       └── chatagent/              # Created by `agentcore add runtime`
+│           ├── README.md           # Help file generated by the CLI
+│           └── AGENTS.md           # Instructions for AI coding assistants
+└── test.py                         # Deployed agent test script (created in Step 3)
 ```
 
-The AgentCore command have also created AGENTS.md which has instructions for your coding agents.
+</details>
 
-### 1.2 Add `main.py` and `pyproject.toml` in app\GigaChadAgent.
+<details>
+<summary><strong>1.2 Create <code>main.py</code> and <code>pyproject.toml</code></strong></summary>
 
-```bash
+Navigate into `app/chatagent` and create the two empty files:
+
+**Windows (CMD):**
+```cmd
+cd app\chatagent
 type nul >> main.py
 type nul >> pyproject.toml
 ```
 
-### 1.3 Add the code for the agent, and populate pyproject.toml
-
-Add this in main.py
-
+**macOS / Linux:**
 ```bash
+cd app/chatagent
+touch main.py pyproject.toml
+```
+
+</details>
+
+<details>
+<summary><strong>1.3 Add the agent code and dependencies</strong></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>Populate <code>main.py</code></strong></summary>
+
+```python
 import os
 from openai import AsyncOpenAI
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
@@ -110,9 +175,9 @@ async def invoke(payload: dict, context):
             model=model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": prompt},
             ],
-            stream=True
+            stream=True,
         )
         # Yielding dicts streams SSE chunks: data: {"delta": "..."}\n\n
         async for chunk in stream:
@@ -129,9 +194,12 @@ if __name__ == "__main__":
     app.run()
 ```
 
-And this in pyproject.toml
+</details>
 
-```bash
+<details>
+<summary><strong>Populate <code>pyproject.toml</code></strong></summary>
+
+```toml
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -150,81 +218,167 @@ dependencies = [
 packages = ["."]
 ```
 
-### 1.4 Stay in the `app\chatagent` folder and run this
+</details>
+
+</blockquote>
+
+</details>
+
+<details>
+<summary><strong>1.4 Sync dependencies</strong></summary>
+
+While still inside `app/chatagent`, install dependencies with `uv`:
 
 ```bash
 uv sync
 ```
 
-### 1.5 Run the agent Locally
-Put your actual openAI API key in the command below
-```bash
+</details>
+
+<details>
+<summary><strong>1.5 Run and test the agent locally</strong></summary>
+
+Set your actual OpenAI API key and start the local server:
+
+**Windows (CMD):**
+```cmd
 set OPENAI_API_KEY=sk-proj-...
 uv run main.py
 ```
 
-Open a second cmd window and leave the first one running and put this command in it
+**macOS / Linux:**
 ```bash
-curl -N -X POST http://localhost:8080/invocations -H "Content-Type: application/json" -d "{\"prompt\": \"Pray to god that I will make this world a better place.\"}"
+export OPENAI_API_KEY=sk-proj-...
+uv run main.py
 ```
-You must see something like this as output `data: {"delta": ...}`
 
-# Step 2 - Deploying the Agent to agentCore
+Keep that terminal running, open a **second terminal window**, and send a test request:
 
-### 2.1 Build the code zip
+```bash
+curl -N -X POST http://localhost:8080/invocations \
+  -H "Content-Type: application/json" \
+  -d "{\"prompt\": \"Pray to god that I will make this world a better place.\"}"
+```
+
+You should see streamed SSE output like `data: {"delta": "..."}`.
+
+</details>
+
+</blockquote>
+
+</details>
+
+---
+
+<details>
+<summary><h3>Step 2 — Deploying the Agent to AWS AgentCore</h3></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>2.1 Build the deployment ZIP</strong></summary>
+
+From your project root (`GigaChadAgent`), run:
 
 ```bash
 agentcore build
 ```
-This creates a zip file with `main.py` at the root level
 
-### 2.2 Upload the zip from step 2.1 to `S3`
+This creates a ZIP archive with `main.py` at the root level.
 
-- [] Create a new bucket and name it something appropriate.
-- [] Keep the default settings and hit upload!
-- [] Copy the S3 URI
+</details>
 
-### 2.3 Create a AgentCore Runtime
+<details>
+<summary><strong>2.2 Upload the ZIP to Amazon S3</strong></summary>
 
-#### 2.3.1 Go to AgentCore then in `Agents` in leftSidebar and then to `host agents`
-<img width="1919" height="942" alt="image" src="https://github.com/user-attachments/assets/5e49e612-6b2e-4ddf-8d76-330b14849435" />
+- [ ] Create a new S3 bucket and give it an appropriate name.
+- [ ] Keep the default settings and upload the ZIP generated in Step 2.1.
+- [ ] Copy the uploaded object's **S3 URI** (`s3://...`).
 
-#### 2.3.2 Create a runtime
+</details>
 
-## AWS AgentCore Runtime Configuration
+<details>
+<summary><strong>2.3 Create an AgentCore Runtime</strong></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>2.3.1 Navigate to Host Agents</strong></summary>
+
+Open **Amazon Bedrock AgentCore**, select **Agents** in the left sidebar, and go to **Host agents**.
+
+<img width="1919" height="942" alt="Navigate to Host agents in AWS AgentCore" src="https://github.com/user-attachments/assets/5e49e612-6b2e-4ddf-8d76-330b14849435" />
+
+</details>
+
+<details>
+<summary><strong>2.3.2 Configure and create the runtime</strong></summary>
+
+Fill out the runtime configuration using the settings below, then click **Create Runtime**:
 
 | Setting | Value / Selection | Explanation |
-|---|---|---|
+| :--- | :--- | :--- |
 | **Name** | `gigachadAgent_runtime` | Use letters, numbers, and underscores only. |
 | **Runtime platform** | **V1** | Select V1. |
 | **Code source** | **S3** | Paste the S3 URI of the ZIP file uploaded in Step 2.2. |
 | **Runtime** | **Python 3.14** | Must match `runtimeVersion` in `agentcore.json`. |
-| **Entry point** | `opentelemetry-instrument main.py` | Starts the agent and enables tracing in CloudWatch Observability. Plain `main.py` also works but may not produce traces. |
+| **Entry point** | `opentelemetry-instrument main.py` | Starts the agent and enables tracing in CloudWatch Observability. Plain `main.py` works too, but may not produce traces. |
 | **IAM role** | **Create new role** | Or select an existing AgentCore execution role with the required permissions. |
-| **Network** | **Public** | Allows the agent to access external services such as OpenAI. |
+| **Network** | **Public** | Allows the agent to reach external services such as OpenAI. |
 | **Environment variables** | `OPENAI_API_KEY` = your OpenAI API key | Used by `main.py` to authenticate with OpenAI. |
 | **Filesystem configuration** | **Leave empty** | Not required. |
 | **Inbound Auth** | **JSON Web Tokens (JWT)** | Enables JWT authentication for incoming requests. |
-| **Identity provider configuration** | **Use existing Identity provider configurations** | Reuses your existing Cognito User Pool. Do not select **Quick create**, as it creates a new pool. |
+| **Identity provider configuration** | **Use existing Identity provider configurations** | Reuses your existing Cognito User Pool. Do **not** select *Quick create* (that creates a new pool). |
 | **Discovery URL** | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>/.well-known/openid-configuration` | Replace `<region>` and `<user-pool-id>` with your Cognito details. |
-| **Allowed clients** | **Your Cognito App Client ID** | Specifies which Cognito app client is allowed to access the runtime. |
-| **Allowed audiences** | **Leave empty** | Cognito access tokens use `client_id` instead of `aud`. The **Allowed clients** setting checks this value. |
+| **Allowed clients** | **Your Cognito App Client ID** | Specifies which Cognito app client is permitted to invoke the runtime. |
+| **Allowed audiences** | **Leave empty** | Cognito access tokens use `client_id` instead of `aud`, which **Allowed clients** validates. |
 
-Then hit the `Create Runtime` button!!
+</details>
 
-#### 2.3.3 Copy the runtime ARN
-<img width="1919" height="956" alt="image" src="https://github.com/user-attachments/assets/701430e1-7fc4-493b-b8fe-87a5829be78e" />
+<details>
+<summary><strong>2.3.3 Copy the Runtime ARN</strong></summary>
 
-# Step 3 - Test the Agent
+Once created, copy your new **Runtime ARN** for testing in Step 3.
 
-### 3.1 Copy your cognito Access token 
+<img width="1919" height="956" alt="Copy the Runtime ARN from AWS AgentCore" src="https://github.com/user-attachments/assets/701430e1-7fc4-493b-b8fe-87a5829be78e" />
 
-### 3.2 Create a python test script to test the deployed agent!
+</details>
 
-1. Create a test.py file (Replace the line 2 value with your actual ARN)
+</blockquote>
 
-```bash
-import base64, getpass, json, urllib.error, urllib.parse, urllib.request, uuid
+</details>
+
+</blockquote>
+
+</details>
+
+---
+
+<details>
+<summary><h3>Step 3 — Test the Deployed Agent</h3></summary>
+
+<blockquote>
+
+<details>
+<summary><strong>3.1 Obtain your Cognito Access Token</strong></summary>
+
+Authenticate with your Cognito User Pool and copy the **Access Token** *(not the ID token)*.
+
+</details>
+
+<details>
+<summary><strong>3.2 Create and run <code>test.py</code></strong></summary>
+
+Create a `test.py` file and replace `<your runtime ARN>` on line 4 with the ARN copied in Step 2.3.3:
+
+```python
+import base64
+import getpass
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
 
 REGION = "us-west-2"
 RUNTIME_ARN = "<your runtime ARN>"
@@ -236,64 +390,105 @@ prompt = input("Type your message, then press Enter: ").strip()
 claims = json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))
 print("token_use:", claims.get("token_use"), "| client_id:", claims.get("client_id"))
 
-url = (f"https://bedrock-agentcore.{REGION}.amazonaws.com/runtimes/"
-       f"{urllib.parse.quote(RUNTIME_ARN, safe='')}/invocations?qualifier=DEFAULT")
-req = urllib.request.Request(url, method="POST",
+url = (
+    f"https://bedrock-agentcore.{REGION}[.amazonaws.com/runtimes/](https://.amazonaws.com/runtimes/)"
+    f"{urllib.parse.quote(RUNTIME_ARN, safe='')}/invocations?qualifier=DEFAULT"
+)
+req = urllib.request.Request(
+    url,
+    method="POST",
     data=json.dumps({"prompt": prompt}).encode(),
     headers={
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "text/event-stream",
         "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id": str(uuid.uuid4()),
-    })
+    },
+)
+
 try:
     with urllib.request.urlopen(req) as resp:
         for line in resp:
             print(line.decode().rstrip())
 except urllib.error.HTTPError as e:
     print("HTTP", e.code, e.read().decode())
-
 ```
 
-2. Run the test.py file
+Run the script:
 
 ```bash
 python test.py
 ```
-Common error you may face and how to resolve them
+
+</details>
+
+<details>
+<summary><strong>3.3 Troubleshooting common errors</strong></summary>
 
 | Error | Cause | Fix |
-|---|---|---|
-| `Claim 'client_id' value mismatch` | You used the ID token (`token_use: id`) | Use the access token |
-| `Ineffectual token, will expire within the next minute` | The token is about to expire | Log in again and get a fresh token |
-| `HTTP 401` with any other message | Wrong Discovery URL or app client ID | Check the settings from 2.4 |
+| :--- | :--- | :--- |
+| `Claim 'client_id' value mismatch` | You passed the ID token (`token_use: id`) | Use the **Access Token** instead |
+| `Ineffectual token, will expire within the next minute` | Token is about to expire | Log in again and grab a fresh token |
+| `HTTP 401` with any other message | Wrong Discovery URL or App Client ID | Double-check your Inbound Auth settings in Step 2.3.2 |
 
-# Step 3 - Precautionary Step (Hide your ARN!)
+</details>
 
-You can now connect this agent to a website and talk to it once the user is logged in using the same cognito user pool but the ARN will be exposed to the end user which will cause unnecessory information disclosure.
+</blockquote>
 
-### Step 3.1 - Create a new cloudfront function
-<img width="1902" height="945" alt="image" src="https://github.com/user-attachments/assets/ae0149ff-1610-4a10-b161-65a50211cd2e" />
+</details>
 
-### Step 3.2 - Add code to hide the ARN
-paste this code in the build tab once you create the function (Update the code as per your need)
+---
 
-```bash
+<details>
+<summary><h3>Step 4 — Precautionary Step (Hide Your Runtime ARN)</h3></summary>
+
+> [!WARNING]
+> If you connect this agent directly to a frontend website, exposing the **Runtime ARN** to the browser causes unnecessary information disclosure (including your AWS account ID). Proxy requests through **CloudFront Functions** so the ARN stays at the edge.
+
+<blockquote>
+
+<details>
+<summary><strong>4.1 Create a new CloudFront Function</strong></summary>
+
+In the AWS Console, navigate to **CloudFront -> Functions** and create a new function.
+
+<img width="1902" height="945" alt="Create a CloudFront Function" src="https://github.com/user-attachments/assets/ae0149ff-1610-4a10-b161-65a50211cd2e" />
+
+</details>
+
+<details>
+<summary><strong>4.2 Add the edge rewrite code</strong></summary>
+
+Paste the following code into the **Build** tab, replace `RUNTIME_ARN` with your own ARN, publish the function, and attach it to your distribution:
+
+```javascript
 function handler(event) {
     var request = event.request;
 
-    // Replace with your own Runtime ARN (AgentCore console → your agent → Runtime ARN).
+    // Replace with your own Runtime ARN (AgentCore console -> your agent -> Runtime ARN).
     // It lives only here, at the CloudFront edge. The browser never sees it.
     var RUNTIME_ARN = "arn:aws:bedrock-agentcore:<region>:<account-id>:runtime/<runtime-id>";
 
-    // Send every request on this path to the AgentCore invoke endpoint.
+    // Route every request on this path to the AgentCore invoke endpoint.
     request.uri = "/runtimes/" + encodeURIComponent(RUNTIME_ARN) + "/invocations";
     request.querystring = { qualifier: { value: "DEFAULT" } };
     return request;
 }
 ```
 
-And then test the agent through postman!
+Once deployed, test your CloudFront endpoint using **Postman** or `curl` with your Cognito `Bearer` token.
 
-# Step 4 - The most important step! 
-# Give this repo a well deserving starrr ⭐
+</details>
+
+</blockquote>
+
+</details>
+
+---
+
+<div align="center">
+
+### Step 5 — The Most Important Step!
+If this guide helped you deploy your agent, **give this repo a well-deserved star** :star:
+
+</div>
