@@ -16,7 +16,7 @@ A simple, step-by-step guide to building, securing, and deploying an OpenAI-powe
 
 ---
 
-<details open>
+<details>
 <summary><h3>Step 0 — Prerequisites</h3></summary>
 
 <blockquote>
@@ -485,16 +485,5 @@ Once deployed, test your CloudFront endpoint using **Postman** or `curl` with yo
 </details>
 
 ---
-
-<details>
-<summary><h3>Step 5 — The Most Important Step!</h3></summary>
-
-<blockquote>
-
-If this guide helped you deploy your agent, **give this repo a well-deserved star** :star:
-
-</blockquote>
-
-</details>
 
 # <div align="center">Don't forget to leave a star ⭐️</div>
